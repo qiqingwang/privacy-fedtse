@@ -136,7 +136,7 @@ if __name__ == '__main__':
         # LEARN = 0.0003 # 0.0001
         TIMESTEP_OUT = 1 # 1
         TIMESTEP_IN = 9 # 6
-        BATCHSIZE = 1
+        BATCHSIZE = 64
         EPOCH = 2000 # 500
         MA_obs = ['E1', 'E5']
         # PRMP = 0.5

@@ -1,20 +1,10 @@
-'''
-STGCN
-'''
-import sys
 import math
 import torch
 import torch.nn as nn
 import torch.nn.init as init
 import torch.nn.functional as F
 import numpy as np
-import pandas as pd
-from scipy.sparse.linalg import eigs
-from torchsummary import summary
 
-'''
-align主要是对数据格式进行一个处理，类似于reshape
-'''
 
 class align(nn.Module):
     def __init__(self, c_in, c_out):
@@ -30,10 +20,8 @@ class align(nn.Module):
         if self.c_in < self.c_out:
             return F.pad(x, [0, 0, 0, 0, 0, self.c_out - self.c_in, 0, 0])
         return x
-'''
-门控卷积单元的定义，目的是用来提取时空特征
-GLU和sigmoid
-'''
+
+
 class temporal_conv_layer(nn.Module):
     def __init__(self, kt, c_in, c_out, act="relu"):
         super(temporal_conv_layer, self).__init__()
@@ -57,10 +45,6 @@ class temporal_conv_layer(nn.Module):
             return torch.sigmoid(self.conv(x) + x_in)
         return torch.relu(self.conv(x) + x_in)
 
-
-'''
-空间卷积层
-'''
 
 class spatio_conv_layer(nn.Module):
     def __init__(self, ks, c, Lk):
@@ -87,6 +71,7 @@ class spatio_conv_layer(nn.Module):
         # print('sp shape is :', x_gc.shape)
         return torch.relu(x_gc + x)
 
+
 class linear(nn.Module):
     def __init__(self,c_in,c_out):
         super(linear,self).__init__()
@@ -95,9 +80,6 @@ class linear(nn.Module):
     def forward(self,x):
         return self.mlp(x)
 
-'''
-这就是对应的一个ST_conv模块，会调用到前面定义好的tconv和sconv
-'''
 
 class st_conv_block(nn.Module):
     # self.st_conv1 = st_conv_block(ks, kt, n, bs[0], p, Lk)
@@ -152,6 +134,7 @@ class st_conv_block(nn.Module):
         # print('x_ln shape is xxxxxxxxxxxxx', self.dropout(x_ln).shape)       
         return self.dropout(x_ln)
 
+
 class output_layer(nn.Module):
     def __init__(self, c, T, n, o, mode='vfl'):
         super(output_layer, self).__init__()
@@ -186,7 +169,6 @@ class output_layer(nn.Module):
         return x
 
 
-###################################STGCN##############################################
 class STGCN(nn.Module):
     # model = STGCN(ks, kt, bs, T, n, Lk, p).to(device)
     # bs = [[CHANNEL, 16, 64], [64, 16, 64]]
@@ -233,7 +215,6 @@ class STGCN(nn.Module):
         x_grad = x.grad
         return x_grad
 
-###################################STGCN##############################################
 
 def weight_matrix(W, sigma2=0.1, epsilon=0.5, alpha=10):
     '''
@@ -249,6 +230,7 @@ def weight_matrix(W, sigma2=0.1, epsilon=0.5, alpha=10):
     W_mask = (np.ones([n, n]) - np.identity(n))
     return np.exp(-W2 / sigma2) * (np.exp(-W2 / sigma2) >= epsilon) * W_mask
 
+
 def scaled_laplacian(A):
     n = A.shape[0]
     d = np.sum(A, axis=1)
@@ -260,46 +242,10 @@ def scaled_laplacian(A):
     lam = np.linalg.eigvals(L).max().real
     return 2 * L / lam - np.eye(n)
 
+
 def cheb_poly(L, Ks):
     n = L.shape[0]
     LL = [np.eye(n), L[:]]
     for i in range(2, Ks):
         LL.append(np.matmul(2 * L, LL[-1]) - LL[-2])
     return np.asarray(LL)
-
-# def main():
-#     from pred_STGCN import CHANNEL, N_NODE, TIMESTEP_IN, TIMESTEP_OUT, ADJPATH, ADJTYPE
-#     GPU = sys.argv[-1] if len(sys.argv) == 2 else '3'
-#     device = torch.device("cuda:{}".format(GPU)) if torch.cuda.is_available() else torch.device("cpu")
-#     print('STGCN.py ' + str(CHANNEL))
-#     # ks, kt, bs, T, n, p = 3, 3, [[CHANNEL, 32, 64], [64, 32, 128]], TIMESTEP_IN, N_NODE, 0
-#     ks, kt, bs, T, n, p = 3, 3, [[CHANNEL, 32, 64], [64, 32, 64]], TIMESTEP_IN, N_NODE, 0
-#     # ks, kt, bs, T, n, p = 3, 3, [[CHANNEL, 16, 64], [64, 16, 64]], TIMESTEP_IN, N_NODE, 0
-#     Lk_new = torch.empty(2,3,69,69).to(device)
-#     for i in range(2):
-#         A = pd.read_csv(ADJPATH).values
-#         W = weight_matrix(A, 0.5, 0.5, 10)
-#         L = scaled_laplacian(W)
-#         # print('L shape is', L.shape)
-#         Lk = cheb_poly(L, ks)
-#         # print('cheb_poly', Lk.shape)
-#         Lk = torch.Tensor(Lk.astype(np.float32)).to(device)
-#         Lk_new[i] = Lk
-#         # print('Lk shape is',Lk.shape)
-#     # print('Lk_new shape is',Lk_new.shape)
-#     # A = pd.read_csv(ADJPATH).values
-#     # W = weight_matrix(A)
-#     # L = scaled_laplacian(W)
-#     # print('L shape is', L.shape)
-#     # Lk = cheb_poly(L, ks)
-#     # print('cheb_poly', Lk.shape)
-#     # Lk = torch.Tensor(Lk.astype(np.float32)).to(device)
-#     # # # Lk_new = np.append(Lk_new, Lk, axis=0)
-#     # print('Lk shape is', Lk.shape)
-#     # model = STGCN(ks, kt, bs, T, n, Lk, p).to(device)
-#     model = STGCN(ks, kt, bs, T, n, Lk_new, p).to(device)
-#     summary(model, (CHANNEL, TIMESTEP_IN, N_NODE), device=device)
-#     torch.save(model, '../diagram/STGCN.pth')
-    
-# if __name__ == '__main__':
-#     main()
